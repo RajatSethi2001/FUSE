@@ -1,4 +1,6 @@
-from mutation_op import *
+from .mutation_op import MutationOP
+import sys
+sys.path.append("..")
 import utils
 
 class mOP(MutationOP):
@@ -20,7 +22,7 @@ class mOP(MutationOP):
 
       output['filename'] = filename + '_M13'
       if output['content'][-1] == '\x0a':
-        output['content'] = output['content'][:-1]+data
+        output['content'] = data + output['content'][:-1]
       else:
-        output['content'] += data
+        output['content'] = data + output['content']
 

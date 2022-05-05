@@ -1,4 +1,4 @@
-import ConfigParser
+import configparser
 import sys, os
 import time
 import hashlib
@@ -9,10 +9,9 @@ import functools
 from multiprocessing import Process, Queue,Pool
 import re
 import urllib
-import urllib2
 import zlib
 import gzip
-import StringIO
+from io import StringIO
 
 import fileuploader
 import filemutator
@@ -45,7 +44,7 @@ PROCESS_LIMIT = 8
 
 class configDigester(object):
   def __init__(self, confpath):
-    self.parser = ConfigParser.ConfigParser()
+    self.parser = configparser.ConfigParser()
     self.parser.read(confpath)
     self.target = {}
     self.framework = {}
@@ -121,7 +120,7 @@ class MonitorDisableClient(object):
           directURL = directURL.split("/",3)[-1]
         return [True,directURL]
       else:
-        print "[-] %filename# custom tag in uploaded file name pattern needs more data"
+        print("[-] %filename# custom tag in uploaded file name pattern needs more data")
         exit(0)
 
     body = body.replace('\\','')
@@ -137,7 +136,7 @@ class MonitorDisableClient(object):
         uniqObj = uniqRe.search(binary)
         uniqueValue = uniqObj.string[uniqObj.start()+12:uniqObj.end()-9]
     except:
-      print "[-] Fail to find Unique value in Binary"
+      print("[-] Fail to find Unique value in Binary")
       exit(0)
     if filename != None:
       filename_hash = filename[:32]
@@ -176,15 +175,15 @@ class MonitorDisableClient(object):
 
     for condid_url in condid_url_list:
       try:
-        conn_uploaded = urllib2.Request(condid_url)
+        conn_uploaded = urllib.request(condid_url)
         conn_uploaded.add_header('Cookie',conf.target['webLoginCookie'])
         if Debug:
-          print "[http request] non-monitor mode file verification urllib open"
-        res_uploaded_test = urllib2.urlopen(conn_uploaded)
+          print("[http request] non-monitor mode file verification urllib open")
+        res_uploaded_test = urllib.urlopen(conn_uploaded)
         condid_url = condid_url.replace(conf.target['webHost']+'/','')
-      except urllib2.HTTPError as e:
+      except urllib.HTTPError as e:
         if Debug:
-          print "[-] Access Error - {}".format(e)
+          print("[-] Access Error - {}".format(e))
         continue
       if res_uploaded_test.code == 200:
 
@@ -227,13 +226,13 @@ class MonitorClient(object):
     self.send(sendData)
     response = self.recv()
     if response == None:
-      print "Fail to Communicate Server"
+      print("Fail to Communicate Server")
     else:
       if response["type"] == "Fail":
         return (False, None)
       else:
         if filehash != response["hash"]:
-          print "[-] File hash is not matched"
+          print("[-] File hash is not matched")
         return (True, response)
 
 
@@ -249,7 +248,7 @@ class MonitorClient(object):
           break
         recvData += recvDataPart
     except:
-      print "[-] Error occured during recieving command"
+      print("[-] Error occured during recieving command")
       return None
     if recvData[0] == "\"":
       recvData = recvData[1:]
@@ -260,7 +259,7 @@ class MonitorClient(object):
     try:
       retData = json.loads(recvData)
     except:
-      print "[-] Error occured during parsing recieved command"
+      print("[-] Error occured during parsing recieved command")
       return None
     return retData
 
@@ -271,7 +270,7 @@ class MonitorClient(object):
         self.conn.send(sendData+'\n')
         break
       except:
-        print "[Monitor Client Send] Restart monitor socket"
+        print("[Monitor Client Send] Restart monitor socket")
         self.conn.close()
         self.__init__(self.__ip__)
 
@@ -282,7 +281,7 @@ class MonitorClient(object):
     try:
       self.send(closedata)
     except socket.error as e:
-      print "[Monitor Client] {}".format(e)
+      print("[Monitor Client] {}".format(e))
       pass
     self.conn.close()
 
@@ -330,22 +329,22 @@ def verifier(monitorClient,isuploaded, mutate_data, seed_file, mutate_list, file
       if len(conf.target["webUploadFilesURL"])>0:
 
         if conf.target["webUploadFilesParameter"]!=None:
-          UploadList = urllib2.Request(conf.target["webUploadFilesURL"],(conf.target["webUploadFilesParameter"]))
+          UploadList = urllib.Request(conf.target["webUploadFilesURL"],(conf.target["webUploadFilesParameter"]))
           if conf.target["webUploadFilesParameter"][0]== '{':
             fileuploader.addHeader(UploadList,conf.target["webHost"],contenttype="application/json",referer=conf.target["webUploadURL"])
           elif conf.target["webUploadFilesParameter"][0]== '<':
             fileuploader.addHeader(UploadList,conf.target["webHost"],contenttype="application/xml",referer=conf.target["webUploadURL"])
         else:
-          UploadList = urllib2.Request(conf.target["webUploadFilesURL"])
+          UploadList = urllib.Request(conf.target["webUploadFilesURL"])
           fileuploader.addHeader(UploadList,conf.target["webHost"],referer=conf.target["webUploadURL"])
         UploadList.add_header('Accept-encoding', 'gzip,deflate')
 
         UploadList.add_header('Cookie',conf.target["webLoginCookie"])
 
         if Debug:
-          print "[http request] non-monitor mode verifier urlopen"
+          print("[http request] non-monitor mode verifier urlopen")
 
-        UploadList_ret = urllib2.urlopen(UploadList)
+        UploadList_ret = urllib.urlopen(UploadList)
 
         if "content-encoding" in UploadList_ret.headers.keys():
           encode = UploadList_ret.headers['content-encoding']
@@ -381,7 +380,7 @@ def verifier_thread(target, framework, manager, inQueue, rbQueue):
       try:
         monitorClient = MonitorClient(conf.framework['monitorHost'],conf.framework['monitorPort'])
       except:
-        print "cannot connect to webserver.. try again"
+        print("cannot connect to webserver.. try again")
         continue
       break
   else:
@@ -393,7 +392,7 @@ def verifier_thread(target, framework, manager, inQueue, rbQueue):
   if base_url[:7] != "http://" and base_url[:8] != "https://":
     base_url = "http://"+base_url
 
-  print "[+] Connection Succeed"
+  print("[+] Connection Succeed")
   while True:
     rbQueue.process_data_events()
     if not inQueue.empty():
@@ -418,13 +417,13 @@ def verifier_thread(target, framework, manager, inQueue, rbQueue):
       mut_combination ='+'.join(data[3])
 
       if accessValid[0] and ((seedType=='js' and accessValid[1]=="Code Exposed") or (seedType=='php' and (accessValid[1]=="Execution Succeed")) or((seedType == 'html' or seedType == 'xhtml') and (accessValid[1]=="Code Exposed" or accessValid[1]=="Execution Succeed"))):
-        print "Success = [{}] - {}".format(seedType, '+'.join(mutate_list))
+        print("Success = [{}] - {}".format(seedType, '+'.join(mutate_list)))
         if seedType in success_mutation.keys():
           success_mutation[seedType].append(mutate_list)
         else:
           success_mutation[seedType] = [mutate_list]
       elif seedType=='php' and (mut_combination != '' and ((accessValid[0] and accessValid[1] == "Code Exposed") or (not accessValid[0] and accessValid[1] == "Forbidden"))): #PHP PCE - about Extension without M12
-        print "Success = [{}] - {}".format(seedType, '+'.join(mutate_list))
+        print("Success = [{}] - {}".format(seedType, '+'.join(mutate_list)))
         if seedType in success_mutation.keys():
           success_mutation[seedType].append(mutate_list)
         else:
@@ -442,7 +441,7 @@ def verifier_thread(target, framework, manager, inQueue, rbQueue):
 
     if TotalRequest == ProcessedRequest:
       if chainCounter > conf.framework['mutationChainLimit']:
-        print "[+] Chain counter hits the limit - {}".format(chainCounter)
+        print("[+] Chain counter hits the limit - {}".format(chainCounter))
         break
       else:
         chainCounter += 1
@@ -459,7 +458,7 @@ def verifier_thread(target, framework, manager, inQueue, rbQueue):
           TotalRequest += 1
           rbQueue.push(mutate_box_wrapped)
       fail_mutation=[]
-      print "mutations = {}/{}".format(ProcessedRequest, TotalRequest)
+      print("mutations = {}/{}".format(ProcessedRequest, TotalRequest))
       if TotalRequest == ProcessedRequest:
         break
 
@@ -488,7 +487,7 @@ def reporter(results, start_time, mid_time, target, seed_list, seed_report):
   ce = {} # Code Execution
   err = {}
 
-  print "Result Count - {}".format(len(results))
+  print("Result Count - {}".format(len(results)))
 
   start = time.time()
   # Determine folder name which is written mutation files that succeed to upload
@@ -508,7 +507,7 @@ def reporter(results, start_time, mid_time, target, seed_list, seed_report):
     base_url += "/"
   if base_url[:7] != "http://" and base_url[:8] != "https://":
     base_url = "http://"+base_url
-  print "[+] Creates the Report...."
+  print("[+] Creates the Report....")
   counter = 0
   all_results = len(results)
   for data_ in results:
@@ -544,7 +543,7 @@ def reporter(results, start_time, mid_time, target, seed_list, seed_report):
             pce[seedType] = []
           pce[seedType].append((i,url))
         else:
-          print "something Wrong - [{}, {}] - {}".format(accessValid[0],accessValid[1],i[2].rsplit('.',1)[-1])
+          print("something Wrong - [{}, {}] - {}".format(accessValid[0],accessValid[1],i[2].rsplit('.',1)[-1]))
           if seedType not in err.keys():
             err[seedType] = []
           err[seedType].append((i,url))
@@ -554,8 +553,8 @@ def reporter(results, start_time, mid_time, target, seed_list, seed_report):
         err[seedType].append((i,url))
 
   end = time.time()
-  print "verify_time : {}".format(vfy_time)
-  print "Finished headless browser test - {} sec".format(end-start)
+  print("verify_time : {}".format(vfy_time))
+  print("Finished headless browser test - {} sec".format(end-start))
   output = "File Upload Sinkpoint Explorer v0.2 - Report\n\n"
   output += "[+] Host : {}\n".format(target["webHost"])
   output += "[+] Tried Seed : {}\n".format(', '.join(seed_list))
@@ -620,53 +619,53 @@ def reporter(results, start_time, mid_time, target, seed_list, seed_report):
       try:
         monitorClient = MonitorClient(conf.framework['monitorHost'],conf.framework['monitorPort'])
       except:
-        print "cannot connect to webserver.. try again"
+        print("cannot connect to webserver.. try again")
         continue
       break
   else:
       monitorClient = MonitorDisableClient(conf.target['webUploadedFileUrlPattern'],conf.target['webUploadURL'])
 
   if isS1Uploaded:
-    print ".htaccess uploaded"
+    print(".htaccess uploaded")
     # 2. upload s1 test data
     testdata = fileuploader.makeS1TestData()
     s1TestRequest = fileuploader.makeUploadRequest(conf.target,testdata)
     isS1TestUploaded = fileuploader.uploadFile(conf.target,s1TestRequest)
     if isS1TestUploaded[0]:
-      print "Test data uploaded"
+      print("Test data uploaded")
       # 3. php execution test
       if conf.framework["monitorEnable"]:
         isvalid = monitorClient.fileValidator(testdata["filename"],testdata['content'])
       else:
         if len(conf.target["webUploadFilesURL"])>0:
           if conf.target["webUploadFilesParameter"]!=None:
-            UploadList = urllib2.Request(conf.target["webUploadFilesURL"],conf.target["webUploadFilesParameter"])
+            UploadList = urllib.Request(conf.target["webUploadFilesURL"],conf.target["webUploadFilesParameter"])
             if conf.target["webUploadFilesParameter"][0]== '{':
               fileuploader.addHeader(UploadList,conf.target["webHost"],contenttype="application/json",referer=conf.target["webUploadURL"])
             elif conf.target["webUploadFilesParameter"][0]== '<':
               fileuploader.addHeader(UploadList,conf.target["webHost"],contenttype="application/xml",referer=conf.target["webUploadURL"])
           else:
-            UploadList = urllib2.Request(conf.target["webUploadFilesURL"])
+            UploadList = urllib.Request(conf.target["webUploadFilesURL"])
             fileuploader.addHeader(UploadList,conf.target["webHost"],referer=conf.target["webUploadURL"])
 
           UploadList.add_header('Cookie',conf.target["webLoginCookie"])
           UploadList.add_header('Accept-encoding', 'gzip,deflate')
 
-          UploadList_ret = urllib2.urlopen(UploadList)
+          UploadList_ret = urllib.urlopen(UploadList)
           if "content-encoding" in UploadList_ret.headers.keys():
             encode = UploadList_ret.headers['content-encoding']
           else:
             encode = None
 
           if Debug:
-            print "[http request] non-monitor mode .htaccess test urlopen 1"
+            print("[http request] non-monitor mode .htaccess test urlopen 1")
           BodyData = ungzip(UploadList_ret.read(),encode)
         else:
           BodyData = isS1TestUploaded[1]
 
         isvalid = monitorClient.fileValidator(BodyData,testdata['content'],testdata['filename'],testdata['fileext'])
       if isvalid[0]:
-        print "upload data file created"
+        print("upload data file created")
         if conf.framework["monitorEnable"]:
           path = isvalid[1]['path'].replace(target["webRootPath"],"")
           url = base_url+path
@@ -674,7 +673,7 @@ def reporter(results, start_time, mid_time, target, seed_list, seed_report):
           url = base_url+isvalid[1]
         accessValid = fileuploader.accessValidation(target, url, testdata['content'], "FUSE_GEN", "php")
         if accessValid[0] and accessValid[1] == "Execution Succeed":
-          print "Execution Success"
+          print("Execution Success")
           s1Flag = True
   if s1Flag:
     output += "[+] S1 - .htaccess upload success & It works. (Vulnerable!)\n\n"
@@ -687,7 +686,7 @@ def reporter(results, start_time, mid_time, target, seed_list, seed_report):
       s1request=fileuploader.makeUploadRequest(conf.target,fileuploader.makeS1Data(m3_mut=mimetype))
       isS1Uploaded =  fileuploader.uploadFile(conf.target,s1request)
       if isS1Uploaded[0]:
-        print ".htaccess uploaded"
+        print(".htaccess uploaded")
         # 2. upload s1 test data
         testdata = fileuploader.makeS1TestData()
         s1TestRequest = fileuploader.makeUploadRequest(conf.target,testdata)
@@ -697,24 +696,24 @@ def reporter(results, start_time, mid_time, target, seed_list, seed_report):
         else:
           if len(conf.target["webUploadFilesURL"])>0:
             if conf.target["webUploadFilesParameter"]!=None:
-              UploadList = urllib2.Request(conf.target["webUploadFilesURL"],conf.target["webUploadFilesParameter"])
+              UploadList = urllib.Request(conf.target["webUploadFilesURL"],conf.target["webUploadFilesParameter"])
               if conf.target["webUploadFilesParameter"][0]== '{':
                 fileuploader.addHeader(UploadList,conf.target["webHost"],contenttype="application/json",referer=conf.target["webUploadURL"])
               elif conf.target["webUploadFilesParameter"][0]== '<':
                 fileuploader.addHeader(UploadList,conf.target["webHost"],contenttype="application/xml",referer=conf.target["webUploadURL"])
             else:
-              UploadList = urllib2.Request(conf.target["webUploadFilesURL"])
+              UploadList = urllib.Request(conf.target["webUploadFilesURL"])
               fileuploader.addHeader(UploadList,conf.target["webHost"],referer=conf.target["webUploadURL"])
 
             UploadList.add_header('Cookie',conf.target["webLoginCookie"])
             UploadList.add_header('Accept-encoding', 'gzip,deflate')
-            UploadList_ret = urllib2.urlopen(UploadList)
+            UploadList_ret = urllib.urlopen(UploadList)
             if "content-encoding" in UploadList_ret.headers.keys():
               encode = UploadList_ret.headers['content-encoding']
             else:
               encode = None
             if Debug:
-              print "[http request] non-monitor mode .htaccess test urlopen 2"
+              print("[http request] non-monitor mode .htaccess test urlopen 2")
             BodyData = ungzip(UploadList_ret.read(),encode)
           else:
             BodyData = isS1TestUploaded[1]
@@ -723,7 +722,7 @@ def reporter(results, start_time, mid_time, target, seed_list, seed_report):
 
 
         if isvalid[0]:
-          print "upload data file created"
+          print("upload data file created")
           if conf.framework['monitorEnable']:
             path = isvalid[1]['path'].replace(target["webRootPath"],"")
             url = base_url+path
@@ -731,7 +730,7 @@ def reporter(results, start_time, mid_time, target, seed_list, seed_report):
             url = base_url+isvalid[1]
           accessValid = fileuploader.accessValidation(target, url, testdata['content'], "FUSE_GEN", "php")
           if accessValid[0] and accessValid[1] == "Execution Succeed":
-            print "Execution Success"
+            print("Execution Success")
             s1Flag = True
             break
     if s1Flag:
@@ -745,7 +744,7 @@ def reporter(results, start_time, mid_time, target, seed_list, seed_report):
   with open("{}_{}.txt".format(folder_name,"report"),"w") as fp:
     fp.write(output)
   #print output
-  print "[!] Report file created - {}_{}.txt\nDone...!".format(folder_name,"report")
+  print("[!] Report file created - {}_{}.txt\nDone...!".format(folder_name,"report"))
 
 
 
@@ -758,14 +757,14 @@ if __name__ == "__main__":
   rbQname = "mutate_op"
   rbQueue.msgqDeclare(rbQname,True)
   start_time = time.time()
-  print "[+] Start Login Process"
+  print("[+] Start Login Process")
   if conf.target['webLoginURL'] != '':
     conf.target['webLoginCookie'] = fileuploader.tryLogin(conf.target)
   else:
-    print "[~] Pass Login Process"
+    print("[~] Pass Login Process")
     conf.target['webLoginCookie'] = ''
   fileuploader.formParser(conf.target)
-  print "[+] Make Mutate List"
+  print("[+] Make Mutate List")
   opListCreator = filemutator.mutate_manager()
   #opList = opListCreator.combinatedOpList()
   # Append file path - temp
@@ -804,9 +803,9 @@ if __name__ == "__main__":
     TotalRequest += 1
     rbQueue.push(rabbitmq.wrap(mutate_box))
 
-  print "[+] Verifier start"
+  print("[+] Verifier start")
   results = verifier_thread(conf.target, conf.framework ,opListCreator, inQueue, rbQueue)
-  print "[+] Finishing Upload Process...."
+  print("[+] Finishing Upload Process....")
   while inQueue.qsize() != 0 or not inQueue.empty():
     pass
 

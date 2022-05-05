@@ -1,5 +1,9 @@
-from mutation_op import *
+from .mutation_op import MutationOP
 import struct
+import sys
+sys.path.append("..")
+import utils
+
 
 class mOP(MutationOP):
   __comment__ = "Mutation2 : set seed in resource file as metadata"
@@ -11,7 +15,7 @@ class mOP(MutationOP):
 
 
   def operation(self, output, seed_file, resource_file=None):
-    with open('./resource/test.bmp') as fp:
+    with open('./resource/test.bmp', 'rb') as fp:
       data = fp.read()
 
     data = data.replace(b'\x2A\x2F',b'\x00\x00')

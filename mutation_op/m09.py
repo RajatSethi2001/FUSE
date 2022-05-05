@@ -1,5 +1,8 @@
-from mutation_op import *
+from .mutation_op import MutationOP
+import sys
+sys.path.append("..")
 import utils
+
 
 class mOP(MutationOP):
   __comment__ = "Mutation09 : Prepending HTML Dummy Comment"
@@ -15,5 +18,5 @@ class mOP(MutationOP):
       else:
         filename = utils.extract_filename(seed_file)
       dummy = "<!--"+"a"*4096+"-->"
-      output['content'] = dummy + output['content']
+      output['content'] = bytes(dummy, 'ascii') + output['content']
       output['filename'] = filename + '_M9'

@@ -1,5 +1,9 @@
-from mutation_op import *
+from .mutation_op import MutationOP
 import struct
+import sys
+sys.path.append("..")
+import utils
+
 
 class mOP(MutationOP):
   __comment__ = "Mutation2 : set seed in resource file as metadata"
@@ -11,24 +15,24 @@ class mOP(MutationOP):
 
   def operation(self, output, seed_file, resource_file=None):
     if len(output['content'])<256:
-      commentBlock = [b'\x21\xFE',struct.pack('>B',len(output['content'])),output['content'],'\x00']
+      commentBlock = [b'\x21\xFE',struct.pack('>B',len(output['content'])),output['content'],b'\x00']
     else:
       commentBlock = [b'\x21\xFE',b'\xff']
       offset = 0xff
       commentBlock += [output['content'][:offset]]
       while len(output['content'][offset:])>0:
-        semilen = ord(output['content'][offset])
+        semilen = ord(str(output['content'])[offset])
         commentBlock += [struct.pack('>B',semilen)]
         pad = ""
         if semilen > len(output['content'][offset+1:]):
           pad += "\x0a"*(semilen-len(output['content'][offset+1:]))
-        commentBlock += [output['content'][offset+1:offset+1+semilen]+pad]
+        commentBlock += [output['content'][offset+1:offset+1+semilen]+bytes(pad, 'ascii')]
         offset = offset+1+semilen-len(pad)
 
     with open('./resource/test.gif','rb') as fp:
       data = fp.read()
 
-    output['content'] = data[:0x30d]+b''.join(commentBlock)+data[0x30d:]
+    output['content'] = data[:0x30d] + b''.join(commentBlock) + data[0x30d:]
 
     #with open('new.gif','wb') as fp:
     #  fp.write(output['content'])

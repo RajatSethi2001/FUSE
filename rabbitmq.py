@@ -1,3 +1,4 @@
+from email.base64mime import header_length
 import pika
 import json
 
@@ -7,7 +8,7 @@ class mqMsgqIo(object):
   status = None
   qName = None
   def __init__(self, host='localhost'):
-    self.conn = pika.BlockingConnection(pika.ConnectionParameters(host,heartbeat=100))
+    self.conn = pika.BlockingConnection(pika.ConnectionParameters('127.0.0.1', heartbeat=100))
     self.channel = self.conn.channel()
   def msgqDeclare(self,qName,init=False):
     try:

@@ -1,5 +1,8 @@
-from mutation_op import *
+from .mutation_op import MutationOP
+import sys
+sys.path.append("..")
 import utils
+
 
 class mOP(MutationOP):
   __comment__ = "Mutation 6: Apply form EML"
@@ -20,12 +23,12 @@ Content-Transfer-Encoding: quoted-printable
     normalstr = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567890 \n\t'
     emlenc = lambda x: '='+hex(ord(x))[2:]
     data = ''
-    for i in output['content']:
+    for i in str(output['content']):
       if i not in normalstr:
         data +=emlenc(i)
       else:
         data += i
-    output['content'] = base_data+data
+    output['content'] = bytes(base_data, 'ascii') + bytes(data, 'ascii')
     if output['filename'] != None and len(output['filename']) > 0:
       filename = output['filename']
     else:

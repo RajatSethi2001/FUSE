@@ -101,7 +101,7 @@ class mutate_manager:
     elif seedtype in self.__seedList__:
       opList[seedtype] = self.combinatedOpListFactory(seedtype)
     else:
-      print "[-] Given seed type is not exist in seed list"
+      print("[-] Given seed type is not exist in seed list")
       return None
 
     return opList
@@ -150,7 +150,7 @@ class mutate_manager:
 
 
       # insert specific data for hash
-      output['content'] = output['content'].replace("%unique#",os.urandom(8).encode('hex'))
+      output['content'] = output['content'].replace(b"%unique#",os.urandom(8))
 
 
       for mutation in mutate_list:
@@ -183,4 +183,4 @@ if __name__ == '__main__':
   count = 0
   for key in OpList.keys():
     type_seed_files = get_type_seed_files(key, seed_files)
-    print "{} - {}".format(key,len(OpList[key]))
+    print("{} - {}".format(key,len(OpList[key])))

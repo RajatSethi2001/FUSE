@@ -1,0 +1,17 @@
+File Upload Sinkpoint Explorer v0.2 - Report
+
+[+] Host : http://jewel.uploadvulns.thm
+[+] Tried Seed : js, php, html, xhtml
+[+] Upload Target URL : http://jewel.uploadvulns.thm
+[+] Total Execution Time : 0.39333333333333337 hour 23.6 min 36 sec
+[+] Preparing Time : 0 sec
+[+] Average Uploading Time (8 Process) : 0.39194444444444443 hour 23.516666666666666 min 31 sec
+[+] Verify Time : 0 sec
+[+] Tried to Upload File : 47586
+[+] Uploaded Files having CE/PCE ability : 0
+
+
+[-] S1 - .htaccess upload fail or It doesn't work (Secure!)
+
+[-] S1+M3 - .htaccess upload fail or It doesn't work (Secure!)
+

@@ -1,0 +1,17 @@
+File Upload Sinkpoint Explorer v0.2 - Report
+
+[+] Host : http://shell.uploadvulns.thm
+[+] Tried Seed : js, php, html, xhtml
+[+] Upload Target URL : http://shell.uploadvulns.thm
+[+] Total Execution Time : 0.22555555555555556 hour 13.533333333333333 min 32 sec
+[+] Preparing Time : 0 sec
+[+] Average Uploading Time (8 Process) : 0.2247222222222222 hour 13.483333333333333 min 29 sec
+[+] Verify Time : 0 sec
+[+] Tried to Upload File : 14296
+[+] Uploaded Files having CE/PCE ability : 0
+
+
+[-] S1 - .htaccess upload fail or It doesn't work (Secure!)
+
+[-] S1+M3 - .htaccess upload fail or It doesn't work (Secure!)
+

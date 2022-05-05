@@ -1,5 +1,9 @@
-from mutation_op import *
+from .mutation_op import MutationOP
 import struct
+import sys
+sys.path.append("..")
+import utils
+
 
 class mOP(MutationOP):
   __comment__ = "Mutation2 : set seed in resource file as metadata"

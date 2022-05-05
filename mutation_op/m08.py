@@ -1,5 +1,8 @@
-from mutation_op import *
+from .mutation_op import MutationOP
+import sys
+sys.path.append("..")
 import utils
+
 
 class mOP(MutationOP):
   __comment__ = "Mutation 8: Insert scripts in SVG file"
@@ -24,7 +27,7 @@ class mOP(MutationOP):
   </g>
 </svg>
 """
-    output['content'] = base_headdata+output['content']+base_taildata
+    output['content'] = bytes(base_headdata, 'ascii')  + output['content'] + bytes(base_taildata, 'ascii')
     #print output['content']
     if output['filename'] != None and len(output['filename']) > 0:
       filename = output['filename']

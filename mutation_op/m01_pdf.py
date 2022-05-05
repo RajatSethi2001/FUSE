@@ -1,5 +1,8 @@
-from mutation_op import *
+from .mutation_op import MutationOP
+import sys
+sys.path.append("..")
 import utils
+
 
 class mOP(MutationOP):
   __comment__ = "Mutation1 : set 1024byte from resource file in front of seed"
@@ -18,7 +21,7 @@ class mOP(MutationOP):
     else:
       filename = utils.extract_filename(seed_file)
     output['filename'] = filename + '_M1PDF'
-    output['content'] = utils.extract_content(resource_file)[:1024] +">>"+ \
+    output['content'] = utils.extract_content(resource_file)[:1024] +b">>"+ \
               output['content']
       #test
       #f = open('file.bin', 'wb')

@@ -1,4 +1,4 @@
-import ConfigParser
+import configparser
 import sys, os
 import time
 import hashlib
@@ -7,17 +7,16 @@ import json
 import functools
 import re
 import urllib
-import urllib2
 import zlib
 import gzip
 import datetime
-import cookielib
-import Cookie
+import http.cookiejar as cookielib
+import http.cookies as Cookie
 from bs4 import BeautifulSoup
 import random
-import StringIO as StrIO
+from io import StringIO as StrIO
 import itertools
-import mimetools
+import email.generator
 import mimetypes
 import utils
 
@@ -28,7 +27,8 @@ def ungzip(data,encode=None):
       ret = zlib.decompress(data, 16+zlib.MAX_WBITS)
     elif "gzip" in encode.lower():
       tmp = StrIO.StringIO(data)
-      ret = gzip.GzipFile(fileobj=tmp).read()
+      #ret = gzip.GzipFile(fileobj=tmp).read()
+      ret = gzip.decompress(tmp)
   else:
     ret = data
   return ret
@@ -43,7 +43,7 @@ class MultiPartForm(object):
   def __init__(self):
     self.form_fields = []
     self.files = []
-    self.boundary = mimetools.choose_boundary()
+    self.boundary = email.generator._make_boundary()
     return
 
   def get_content_type(self):
@@ -104,7 +104,7 @@ class MultiPartForm(object):
 
 class configDigester(object):
   def __init__(self, confpath):
-    self.parser = ConfigParser.ConfigParser()
+    self.parser = configparser.ConfigParser()
     self.parser.read(confpath)
     self.target = {}
     self.framework = {}
@@ -162,28 +162,31 @@ class MonitorDisableClient(object):
   filename = None
   uniquePattern = None
   baseurl = None
-  def __init__(self,FilePattern,uploadUrl):
+  def __init__(self,FilePattern,uploadUrl, conf):
     self.pattern = FilePattern
     self.filename = "[a-f|0-9]{32}(_M[0-9]{1,2}[A-Z|0-9]*)+(\.[a-z|A-Z|0-9]*)+"
     if "%genfile#" in self.pattern:
       self.pattern = self.pattern.replace("%genfile#",self.filename)
     self.uniquePattern = "<!--[0-9|a-f]{16}-->"
     self.baseurl = uploadUrl.rsplit("/",1)[0]
+    self.conf = conf
 
   def fileValidator(self,body,binary,filename=None, ext=None):
     if "%filename#" in self.pattern:
       if filename != None and ext != None:
-        directURL = self.pattern.replace("%filename#",filename).replace(conf.target['webHost']+'/','')
+        directURL = self.pattern.replace("%filename#",filename).replace(self.conf.target['webHost']+'/','')
         if len(ext)>0:
           directURL += ".{}".format(ext)
         if directURL[:4] == "http":
           directURL = directURL.split("/",3)[-1]
         return [True,directURL]
       else:
-        print "[-] %filename# custom tag in uploaded file name pattern needs more data"
+        print("[-] %filename# custom tag in uploaded file name pattern needs more data")
         exit(0)
 
+    body = str(body)
     body = body.replace('\\','')
+    print(self.pattern)
     cursor = re.finditer(self.pattern, body,0)
     uniqueValue = binary
     filename_hash = filename
@@ -191,7 +194,7 @@ class MonitorDisableClient(object):
     try:
       condid_url_list = []
       while True:
-        target = cursor.next()
+        target = cursor.__next__()
         condid_url = target.string[target.start():target.end()]
 
         if 'http://' not in condid_url:
@@ -211,7 +214,7 @@ class MonitorDisableClient(object):
               break
 
         if filename_hash != None and filename_hash in condid_url:
-          condid_url = condid_url.replace(conf.target['webHost']+'/','')
+          condid_url = condid_url.replace(self.conf.target['webHost']+'/','')
           return [True, condid_url]
         else:
           condid_url_list.append(condid_url)
@@ -220,15 +223,15 @@ class MonitorDisableClient(object):
 
     for condid_url in condid_url_list:
       try:
-        conn_uploaded = urllib2.Request(condid_url)
-        conn_uploaded.add_header('Cookie',conf.target['webLoginCookie'])
+        conn_uploaded = urllib.Request(condid_url)
+        conn_uploaded.add_header('Cookie',self.conf.target['webLoginCookie'])
         if Debug:
-          print "[http request] non-monitor mode file verification urllib open"
-        res_uploaded_test = urllib2.urlopen(conn_uploaded)
-        condid_url = condid_url.replace(conf.target['webHost']+'/','')
-      except urllib2.HTTPError as e:
+          print("[http request] non-monitor mode file verification urllib open")
+        res_uploaded_test = urllib.urlopen(conn_uploaded)
+        condid_url = condid_url.replace(self.conf.target['webHost']+'/','')
+      except urllib.error.HTTPError as e:
         if Debug:
-          print "[-] Access Error - {}".format(e)
+          print("[-] Access Error - {}".format(e))
         continue
       if res_uploaded_test.code == 200:
 
@@ -271,13 +274,13 @@ class MonitorClient(object):
     self.send(sendData)
     response = self.recv()
     if response == None:
-      print "Fail to Communicate Server"
+      print("Fail to Communicate Server")
     else:
       if response["type"] == "Fail":
         return (False, None)
       else:
         if filehash != response["hash"]:
-          print "[-] File hash is not matched"
+          print("[-] File hash is not matched")
         return (True, response)
 
   def recv(self):
@@ -292,7 +295,7 @@ class MonitorClient(object):
           break
         recvData += recvDataPart
     except:
-      print "[-] Error occured during recieving command"
+      print ("[-] Error occured during recieving command")
       return None
     if recvData[0] == "\"":
       recvData = recvData[1:]
@@ -303,7 +306,7 @@ class MonitorClient(object):
     try:
       retData = json.loads(recvData)
     except:
-      print "[-] Error occured during parsing recieved command"
+      print ("[-] Error occured during parsing recieved command")
       return None
     return retData
 
@@ -314,7 +317,7 @@ class MonitorClient(object):
         self.conn.send(sendData+'\n')
         break
       except:
-        print "[Monitor Client Send] Restart monitor socket"
+        print ("[Monitor Client Send] Restart monitor socket")
         self.conn.close()
         self.__init__(self.__ip__)
 
@@ -325,13 +328,14 @@ class MonitorClient(object):
     try:
       self.send(closedata)
     except socket.error as e:
-      print "[Monitor Client] {}".format(e)
+      print ("[Monitor Client] {}".format(e))
       pass
     self.conn.close()
 
 
-def verifier(monitorClient, isuploaded, file_name, file_ext, contents):
-  if isuploaded:
+def verifier(monitorClient, isuploaded, file_name, file_ext, contents, conf):
+  isuploaded = str(isuploaded)
+  if isuploaded != 'failure':
     if conf.framework["monitorEnable"]:
       isvalid = monitorClient.fileValidator(file_name,contents)
       if isvalid[0] == True:
@@ -342,29 +346,29 @@ def verifier(monitorClient, isuploaded, file_name, file_ext, contents):
       if len(conf.target["webUploadFilesURL"])>0:
 
         if conf.target["webUploadFilesParameter"]!=None:
-          UploadList = urllib2.Request(conf.target["webUploadFilesURL"],(conf.target["webUploadFilesParameter"]))
+          UploadList = urllib.request.Request(conf.target["webUploadFilesURL"],(conf.target["webUploadFilesParameter"]))
           if conf.target["webUploadFilesParameter"][0]== '{':
             addHeader(UploadList,conf.target["webHost"],contenttype="application/json",referer=conf.target["webUploadURL"])
           elif conf.target["webUploadFilesParameter"][0]== '<':
             addHeader(UploadList,conf.target["webHost"],contenttype="application/xml",referer=conf.target["webUploadURL"])
         else:
-          UploadList = urllib2.Request(conf.target["webUploadFilesURL"])
+          UploadList = urllib.request.Request(conf.target["webUploadFilesURL"])
           addHeader(UploadList,conf.target["webHost"],referer=conf.target["webUploadURL"])
         UploadList.add_header('Accept-encoding', 'gzip,deflate')
 
         UploadList.add_header('Cookie',conf.target["webLoginCookie"])
 
         if Debug:
-          print "[http request] non-monitor mode verifier urlopen"
+          print ("[http request] non-monitor mode verifier urlopen")
 
-        UploadList_ret = urllib2.urlopen(UploadList)
+        UploadList_ret = urllib.request.urlopen(UploadList)
 
         if "content-encoding" in UploadList_ret.headers.keys():
           encode = UploadList_ret.headers['content-encoding']
         else:
           encode = None
 
-        BodyData = ungzip(UploadList_ret.read(),encode)
+        BodyData = ungzip(UploadList_ret.read(), encode)
       else:
         BodyData = isuploaded[1]
 
@@ -378,18 +382,18 @@ def verifier(monitorClient, isuploaded, file_name, file_ext, contents):
     return [False, None]
 
 
-def varifier_wrapper(target, framework, isuploaded, file_name,file_ext, contents, file_type):
+def varifier_wrapper(target, conf, isuploaded, file_name,file_ext, contents, file_type):
   result = []
   if conf.framework['monitorEnable']:
     while True:
       try:
         monitorClient = MonitorClient(conf.framework['monitorHost'],conf.framework['monitorPort'])
       except:
-        print "cannot connect to webserver.. try again"
+        print ("cannot connect to webserver.. try again")
         continue
       break
   else:
-    monitorClient = MonitorDisableClient(conf.target['webUploadedFileUrlPattern'],conf.target['webUploadURL'])
+    monitorClient = MonitorDisableClient(conf.target['webUploadedFileUrlPattern'],conf.target['webUploadURL'], conf)
 
   base_url = target["webHost"]
   if base_url[-1] != '/':
@@ -398,13 +402,13 @@ def varifier_wrapper(target, framework, isuploaded, file_name,file_ext, contents
     base_url = "http://"+base_url
 
   seedType = file_type
-  ret = verifier(monitorClient,isuploaded,file_name,file_ext,contents)
+  ret = verifier(monitorClient,isuploaded,file_name,file_ext,contents, conf)
 
   return ret[0]
 
 
 # 302 Request Catcher
-class ResponseCatcher(urllib2.HTTPErrorProcessor):
+class ResponseCatcher(urllib.error.HTTPError):
   def http_response(self,request,response):
     return response
   https_response = http_response
@@ -529,8 +533,8 @@ def tryLogin(target):
 
   # Build Request
   cookieJar = cookielib.CookieJar()
-  loginOpener = urllib2.build_opener(ResponseCatcher, urllib2.HTTPCookieProcessor(cookieJar))
-  req = urllib2.Request(target['webLoginURL'],urllib.urlencode(data))
+  loginOpener = urllib.build_opener(ResponseCatcher, urllib.HTTPCookieProcessor(cookieJar))
+  req = urllib.Request(target['webLoginURL'],urllib.urlencode(data))
   if 'webCSRFHeader' in target.keys() and target['webCSRFHeader'] != None:
     req.add_header(target['webCSRFHeader'][0],target['webCSRFHeader'][1])
   # if basic cookie exist, it is appended to request header
@@ -551,17 +555,17 @@ def tryLogin(target):
     while res.code >= 300 and res.code < 400:
       if '/' not in res.headers['Location']:
         baseurl = target['webLoginPageURL'].rsplit('/',1)[0]
-        red_req = urllib2.Request("{}/{}".format(baseurl,res.headers['Location']))
+        red_req = urllib.Request("{}/{}".format(baseurl,res.headers['Location']))
       elif 'http://' not in res.headers['Location']:
         # case for "Location : /relation/path"
         relocation_path = res.headers['Location']
         if relocation_path[0] == '/':
           relocation_path = relocation_path[1:]
-        red_req = urllib2.Request("{}/{}".format(target['webHost'],relocation_path))
+        red_req = urllib.Request("{}/{}".format(target['webHost'],relocation_path))
 
       else:
         # case for "Location : http://blah.blahblah.bl/relation/path"
-        red_req = urllib2.Request(res.headers['Location'])
+        red_req = urllib.Request(res.headers['Location'])
 
       logined_cookie = None
 
@@ -587,14 +591,14 @@ def tryLogin(target):
     logined_page = res.read()
   # response code is not 200 or 302 | 303, this login try maybe failed
   else:
-    print "[-] Can not Login.."
+    print ("[-] Can not Login..")
   # Verify Login using string
   if target["webLoginSuccessStr"] in logined_page:
-    print "[+] Login Success"
+    print ("[+] Login Success")
     return setCookie
 
   else:
-    print "[-] Login Fail"
+    print ("[-] Login Fail")
     exit(0)
 
 
@@ -603,9 +607,9 @@ def tryLogin(target):
 def urlValidator(target,CSRF=None):
   url = customTag(target,target["webLoginPageURL"])
   cookieJar = cookielib.CookieJar()
-  loginOpener = urllib2.build_opener(ResponseCatcher, urllib2.HTTPCookieProcessor(cookieJar))
+  loginOpener = urllib.build_opener(ResponseCatcher, urllib.HTTPCookieProcessor(cookieJar))
 
-  req = urllib2.Request(url)
+  req = urllib.Request(url)
   addHeader(req,target["webHost"])
   res = loginOpener.open(req)
   cookie = ''
@@ -619,20 +623,20 @@ def urlValidator(target,CSRF=None):
         # case for "Location : /relation/path"
 
        # print "*{}{}".format(target['webHost'],res.headers['Location'])
-        red_req = urllib2.Request("{}{}".format(target['webHost'],res.headers['Location']))
+        red_req = urllib.Request("{}{}".format(target['webHost'],res.headers['Location']))
       else:
         # case for "Location : http://blah.blahblah.bl/relation/path"
-        red_req = urllib2.Request(res.headers['Location'])
+        red_req = urllib.Request(res.headers['Location'])
       red_req.add_header('Cookie',cookie)
       addHeader(red_req,target['webHost'],target['webLoginPageURL'])
       if Debug:
-        print "[http request] urlValidator urlopen"
-      res = urllib2.urlopen(red_req)
+        print ("[http request] urlValidator urlopen")
+      res = urllib.urlopen(red_req)
       continue
     try:
       data = res.read()
     except:
-      print "response read fail"
+      print ("response read fail")
       exit(0)
     if res.code == 200 or len(data)>0:
       CSRFValue = None
@@ -684,17 +688,17 @@ def getCSRFToken(res_obj, html,CSRFEles,target):
         if data != None:
           target['webCSRFHeader'] = [findname[2],csrftoken]
         else:
-          print "[-] CSRFToken was not found in upload page"
+          print ("[-] CSRFToken was not found in upload page")
           exit(0)
 
       elif header_name[0] == 'header':
         if header_name[1] in res_obj.headers.keys():
           target['webCSRFHeader'] = [header_name,res_obj.headers[header_name[1]]]
         else:
-          print "[-] Can't not found CSRF Token in Response Header"
+          print ("[-] Can't not found CSRF Token in Response Header")
           exit(0)
       else:
-        print "[-] Weird CSRF Expression"
+        print ("[-] Weird CSRF Expression")
         exit(0)
     else:
       try:
@@ -723,13 +727,13 @@ def formParser(target):
   if len(formAttr[0]) == 0:
     return
 
-  req = urllib2.Request(customTag(target,target['webUploadPageURL']))
+  req = urllib.request.Request(customTag(target,target['webUploadPageURL']))
   req.add_header('Cookie',target['webLoginCookie'])
   addHeader(req,target['webHost'])
   req.add_header('Accept-encoding', 'gzip,deflate')
   if Debug:
-    print "[http request] formParser urlopen"
-  res = urllib2.urlopen(req)
+    print ("[http request] formParser urlopen")
+  res = urllib.urlopen(req)
   if 'content-encoding' in res.headers.keys():
     cnt = res.headers['content-encoding']
   else:
@@ -780,7 +784,7 @@ def formParser(target):
       elif isexist_flag:
         pass
       else:
-        print "  [!] Parameter {} isn't found from upload page".format(checker_param[0])
+        print ("  [!] Parameter {} isn't found from upload page".format(checker_param[0]))
         param.append('{}='.format(checked_param[0]))
 
   if form['action'] == '':
@@ -805,13 +809,13 @@ def makeUploadRequest(target,uploadFile):
 
   # Append CSRF Token to Body
   if (target['webUploadCSRFName'] != ''):
-    semi_req = urllib2.Request(customTag(target,target['webUploadPageURL']))
+    semi_req = urllib.Request(customTag(target,target['webUploadPageURL']))
     addHeader(semi_req, target['webHost'])
     semi_req.add_header('Cookie',target['webLoginCookie'])
     semi_req.add_header('Accept-encoding', 'gzip,deflate')
     if Debug:
-      print "[http request] makeUploadRequest urlopen(CSRF Append)"
-    semi_res = urllib2.urlopen(semi_req)
+      print ("[http request] makeUploadRequest urlopen(CSRF Append)")
+    semi_res = urllib.urlopen(semi_req)
     if 'content-encoding' in semi_res.headers.keys():
       cnt = semi_res.headers['content-encoding']
     else:
@@ -838,7 +842,7 @@ def makeUploadRequest(target,uploadFile):
         if return_url != "":
           target["webDynamicUploadURL"] = return_url
         else:
-          print "[-] Not Found Dynamic upload URL"
+          print ("[-] Not Found Dynamic upload URL")
           exit(0)
 
   # Append other parameters to Body
@@ -908,13 +912,13 @@ def customTag(target, data):
             break
     elif custom[0] == "domtoken":
       arg = custom[1].rsplit('@',1)
-      token_req = urllib2.Request(customTag(target,target['webUploadPageURL']))
+      token_req = urllib.Request(customTag(target,target['webUploadPageURL']))
       token_req.add_header('cookie',target['webLoginCookie'])
       token_req.add_header('Accept-encoding', 'gzip,deflate')
       addHeader(token_req,target['webHost'])
       if Debug:
-        print "[http request] custom tag - domtoken urllib2"
-      token_res_obj = urllib2.urlopen(token_req)
+        print ("[http request] custom tag - domtoken urllib2")
+      token_res_obj = urllib.urlopen(token_req)
       if "content-encoding" in token_res_obj.headers.keys():
         cnt = token_res_obj.headers['content-encoding']
       else:
@@ -944,7 +948,7 @@ def customTag(target, data):
         if return_url != "":
           target["webDynamicUploadURL"] = return_url
         else:
-          print "[-] Not Found Dynamic upload URL"
+          print ("[-] Not Found Dynamic upload URL")
           exit(0)
 
 
@@ -962,41 +966,41 @@ def uploadFile(target, upload_req):
     url = customTag(target,target['webUploadURL'])
   url = url_simplizer(target['webUploadPageURL'], url)
   try:
-    req = urllib2.Request(url.encode('ascii'))
+    req = urllib.request.Request(url)
     req.add_header('Content-Type', upload_req['type'])
     req.add_header('Content-Length', len(upload_req['body']))
     req.add_header('Cookie',target['webLoginCookie'])
-    req.add_data(upload_req['body'])
+    req.data = bytes(upload_req['body'], 'ascii')
     addHeader(req, target['webHost'], referer=customTag(target,target['webUploadPageURL']))
     if target['webUploadCustomHeader'] != '':
       custom = target['webUploadCustomHeader'].split('=',1)
       if len(custom) >0:
         req.add_header(custom[0], custom[1])
       else:
-        print "[-] Custom Header is wrong"
+        print ("[-] Custom Header is wrong")
         exit(0)
     if 'webCSRFHeader' in target.keys() and target['webCSRFHeader'] != None:
       req.add_header(target['webCSRFHeader'][0],target['webCSRFHeader'][1])
     req.add_header('Accept-encoding', 'gzip,deflate')
 
     if Debug:
-      print "[http request] uploadFile urlopen"
-    res_obj = urllib2.urlopen(req)
-  except urllib2.HTTPError as e:
+      print ("[http request] uploadFile urlopen")
+    res_obj = urllib.request.urlopen(req)
+  except urllib.error.HTTPError as e:
     res_obj = e
 
   if res_obj.code >=300 and res_obj.code<400:
     redirect_url = res_obj.headers['Location']
     while True:
-     rereq = urllib2.Request(redirect_url)
+     rereq = urllib.request.Request(redirect_url)
      rereq.add_header('Accept-encoding','gzip,deflate')
      rereq.add_header('Cookie',target['webLoginCookie'])
      addHeader(rereq, target['webHost'], referer=url)
      try:
        if Debug:
-         print "[http request] upload File - 302 re-urlopen"
-       res_obj = urllib2.urlopen(rereq)
-     except urllib2.HTTPError as e:
+         print ("[http request] upload File - 302 re-urlopen")
+       res_obj = urllib.request.urlopen(rereq)
+     except urllib.error.HTTPError as e:
        res_obj = e
      if not (res_obj.code >=300 and res_obj.code<400):
        break
@@ -1013,11 +1017,11 @@ def uploadFile(target, upload_req):
 
 if __name__ == "__main__":
   conf = configDigester(sys.argv[1])
-  print "[+] Start Login Process"
+  print ("[+] Start Login Process")
   if conf.target['webLoginURL'] != '':
     conf.target['webLoginCookie'] = tryLogin(conf.target)
   else:
-    print "[~] Pass Login Process"
+    print ("[~] Pass Login Process")
     conf.target['webLoginCookie'] = ''
   formParser(conf.target)
 
@@ -1047,7 +1051,7 @@ if __name__ == "__main__":
     item_filename = item_filename[0]
     item_filetype = utils.extract_filetype(i)
     file_item = {
-    'filename': hashlib.md5((str)(time.time())).hexdigest()+"_M0TEST",
+    'filename': hashlib.md5(str(time.time()).encode('ascii')).hexdigest()+"_M0TEST",
     'fileext': item_fileext,
     'filetype': item_filetype,
     'content': item_filecontent
@@ -1055,12 +1059,12 @@ if __name__ == "__main__":
     uploadRequest = makeUploadRequest(conf.target,file_item)
     isuploaded =  uploadFile(conf.target,uploadRequest)
     #print isuploaded
-    results = varifier_wrapper(conf.target, conf.framework, isuploaded, item_filename, item_fileext, item_filecontent, item_filetype)
+    results = varifier_wrapper(conf.target, conf, isuploaded, item_filename, item_fileext, item_filecontent, item_filetype)
     #print results
     if results:
-      print "[+] Yay! FUSE can process the configuration file!"
+      print ("[+] Yay! FUSE can process the configuration file!")
       exit(0)
 
-  print "[-] Fail to process the configuration file..."
+  print ("[-] Fail to process the configuration file...")
 
 

@@ -1,6 +1,10 @@
-from mutation_op import *
+from .mutation_op import MutationOP
 import struct
 import zlib
+import sys
+sys.path.append("..")
+import utils
+
 
 class mOP(MutationOP):
   __comment__ = "Mutation2 : set seed in resource file as metadata"
@@ -15,7 +19,7 @@ class mOP(MutationOP):
     textChunk.append(struct.pack('>I',zlib.crc32(b''.join(textChunk[1:]))&0xffffffff))
     with open('./resource/test.png','rb') as fp:
       data = fp.read()
-    injectpoint = data.index('IEND')-4
+    injectpoint = data.index(b'IEND')-4
 
     output['content'] = data[:injectpoint]+b''.join(textChunk)+data[injectpoint:]
     """

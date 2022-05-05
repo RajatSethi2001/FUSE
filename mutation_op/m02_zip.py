@@ -1,4 +1,8 @@
-from mutation_op import *
+from .mutation_op import MutationOP
+import sys
+sys.path.append("..")
+import utils
+
 import struct
 
 class mOP(MutationOP):
